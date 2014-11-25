@@ -4,6 +4,7 @@ import pandas
 import json
 import os
 import subprocess
+import datetime
 
 
 __dir__ = os.path.dirname(os.path.realpath(__file__))
@@ -37,6 +38,8 @@ def filter_events(raw_events, fields=default_fields):
             continue
         # Take only significant fields from event
         event = {k: v for k, v in entry.items() if k in entry_fields}
+        # Convert integer to Python timestamp
+        event['TS'] = datetime.datetime.fromtimestamp(event['TS'] / 1e3)
         # Yield event
         yield event
 
