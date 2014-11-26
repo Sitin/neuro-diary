@@ -2,28 +2,28 @@ Table table;
 int i = 0;
 int rowCount;
 float radius;
+float scale;
+float med;
+float att;
 
 float med() {
   return table.getRow(i).getFloat("EEGMED"); 
 }
 
+float att() {
+  return table.getRow(i).getFloat("EEGATT"); 
+}
+
 boolean hasMore() {
-  return i < rowCount;
+  return i < rowCount-1;
 }
 
-float nextMed() {
-  float med;
+void next() {
   if (hasMore()) {
-    med = med();
-    i++;
-    return med;    
+    i++;    
   } else {
-    return 0.0;
+    i = 0;
   }
-}
-
-float nextRadius() {
-  return getScale() * nextMed();
 } 
 
 float getScale() {
@@ -40,6 +40,8 @@ void setup() {
     frame.setResizable(true);
   }
   
+  frameRate(10);
+  
   table = loadTable("../output/sample.csv", "header");  
   rowCount = table.getRowCount();  
 
@@ -47,14 +49,19 @@ void setup() {
 }
 
 void draw() {
-  radius = nextRadius();
+  scale = getScale();
+  att = att();
+  med = med();
+  
   background(65);
   noStroke();
-  fill(255);  
-  ellipse(width/2, height/2, radius, radius);
   
-  // Loop
-  if (!hasMore()) {
-    i = 0;
-  }
+  fill(127);
+  ellipse(width/2, height/2, med * scale, med * scale);  
+  
+  fill(255);
+  ellipse(med * scale, height - att * scale, 10, 10);
+  
+  ellipse(med * scale, height - att * scale, 10, 10);
+  next();
 }
