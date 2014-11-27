@@ -1,6 +1,7 @@
 Nuero Diary
 ============
 
+
 Session
 --------
 
@@ -16,7 +17,7 @@ Then put your session audio to `visualizer/data/session.mp3`.
 
 Open processing and load file `visualizer/visualizer.pde`.
 
-Press run and have fun.  
+Press run and have fun.
 
 
 Tests
