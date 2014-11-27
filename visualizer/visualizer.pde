@@ -1,17 +1,37 @@
+import ddf.minim.spi.*;
+import ddf.minim.signals.*;
+import ddf.minim.*;
+import ddf.minim.analysis.*;
+import ddf.minim.ugens.*;
+import ddf.minim.effects.*;
+
+int DEF_WIDTH = 1280;
+int DEF_HEIGHT = 720;
+
 Table table;
 int i = 0;
 int rowCount;
+int frameN = 0;
+int fpe;
 float radius;
 float scale;
-float med;
 float att;
+float outerRadius;
+float innerRadius;
 
-float med() {
-  return table.getRow(i).getFloat("EEGMED"); 
-}
+Minim minim;
+AudioPlayer song;
 
 float att() {
   return table.getRow(i).getFloat("EEGATT"); 
+}
+
+float lastAtt() {
+  if (i > 0) {
+    return table.getRow(i-1).getFloat("EEGATT");
+  } else {
+    return 0.0;
+  }
 }
 
 boolean hasMore() {
@@ -20,9 +40,14 @@ boolean hasMore() {
 
 void next() {
   if (hasMore()) {
-    i++;    
+    if (frameN == fpe) {
+      i++;
+      frameN = 0;
+    } else {
+      frameN++;
+    }    
   } else {
-    i = 0;
+    i = 0;    
   }
 } 
 
@@ -34,34 +59,77 @@ float getScale() {
   }
 }
 
-void setup() {
-  size(800, 800);
+void setupViewPort() {
+  size(DEF_WIDTH, DEF_HEIGHT);
   if (frame != null) {
     frame.setResizable(true);
   }
   
-  frameRate(10);
-  
-  table = loadTable("../output/sample.csv", "header");  
+  fpe = 15;
+  frameRate(fpe * 2);
+}
+
+void setupMinim() {
+  minim = new Minim(this);
+  song = minim.loadFile("data/session.mp3");
+  song.play();
+}
+
+void setupTable() {
+  table = loadTable("data/attention.csv", "header");  
   rowCount = table.getRowCount();  
 
-  println(rowCount + " total rows in table"); 
+  println(rowCount + " total rows in table");
+}
+
+void setup() {
+  setupViewPort();
+  setupMinim();
+  setupTable(); 
+}
+
+void calculateFrame() {
+  scale = getScale() / 2;
+  att = lastAtt() + (att() - lastAtt()) / fpe * frameN;
+  innerRadius = att * scale;
+}
+
+void drawCircleWave() {
+  int buffSize = song.bufferSize();
+  float step = TWO_PI / (buffSize - 1);
+  float start = 0;
+  float end = step;
+  float left;
+  float right;
+  float arcRadius;
+  
+  for(int i = 0; i < buffSize - 1; i++) {
+      left = innerRadius / 20 + song.left.get(i) * scale * 100;
+      right = innerRadius / 20 + left + song.right.get(i) * scale * 100;
+    
+      fill(64);
+      arc(width/2, height/2, innerRadius + left, innerRadius + left, start, end);
+      fill(127);
+      arc(width/2, height/2, innerRadius + right, innerRadius + right, start, end);
+      start = end;
+      end += step;
+  }
+}
+
+void drawCircles() {
+  noStroke();
+  drawCircleWave();
+  fill(255);
+  ellipse(width/2, height/2, innerRadius, innerRadius);
 }
 
 void draw() {
-  scale = getScale();
-  att = att();
-  med = med();
+  calculateFrame();
   
   background(65);
   noStroke();
   
-  fill(127);
-  ellipse(width/2, height/2, med * scale, med * scale);  
-  
-  fill(255);
-  ellipse(med * scale, height - att * scale, 10, 10);
-  
-  ellipse(med * scale, height - att * scale, 10, 10);
+  drawCircles();
+
   next();
 }
