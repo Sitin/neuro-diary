@@ -8,6 +8,14 @@ import ddf.minim.effects.*;
 import java.io.File;
 import java.io.FileNotFoundException;
 
+boolean DEBUG = true;
+
+String ____LINE____ = "---------------------------------";
+
+//int START_FRAME = 11600;
+//int START_FRAME = 8640;
+int START_FRAME = 0;
+
 int DEF_WIDTH = 1280;
 int DEF_HEIGHT = 720;
 
@@ -18,8 +26,12 @@ int FPE = 15;
 int FPS = FPE * 2;
 int renderFPS = 10;
 
+int MUSIC_END_THRESHOLD = 10;
+
+String CHARACTERISTIC = "MED";
+
 Table table;
-String csvFileName = "data/attention.csv";
+String csvFileName = "data/session.csv";
 int rowCount;
 
 Minim minim;
@@ -39,7 +51,7 @@ void setBackgroundColor() {
   background(0x32, 0x31, 0x54);
 }
 
-void setAttentionColor() {
+void setCharacteristicColor() {
   fill(0x06, 0x08, 0x1B);
 }
 
@@ -56,10 +68,17 @@ void setDebugTextColor() {
 }
 
 void checkStopCondition() {
+  boolean sessionEndCondition = eventN() >= table.getRowCount() - 1;
+  boolean musicEndCondition = (audioFrameEnd() - bufferSize) >= MUSIC_END_THRESHOLD;
+  boolean timeToStop = sessionEndCondition || musicEndCondition;
   
+  if (timeToStop) {
+    reportRenderingStop();
+    exit();
+  }
 }
 
-void delete(File f) throws IOException {
+void delete(File f) throws IOException, FileNotFoundException {
   if (f.isDirectory()) {
     for (File c : f.listFiles())
       delete(c);
@@ -94,7 +113,7 @@ float getScale() {
 }
 
 int frameN() {
-  return frameCount - 1;
+  return START_FRAME + frameCount - 1;
 }
 
 int eventN() {
@@ -149,16 +168,11 @@ void setupTable() {
   table = new Table();  
   table = loadTable(csvFileName, "header");  
   rowCount = table.getRowCount();
-  println(rowCount + " total rows in table");
 }
 
 void analizeSampleBuffer() {
   bufferSize = sampleBuffer.getBufferSize();
   audioLength = bufferSize / sampleRate; 
-  
-  println(sampleRate + " frames per second");
-  println(bufferSize + " frames");
-  println(audioLength + " seconds");
   
   leftChannel = sampleBuffer.getChannel(0);
   rightChannel = sampleBuffer.getChannel(1);
@@ -170,45 +184,40 @@ void setup() {
   setupTable();
   analizeSampleBuffer();
   prepareFileSystem();
+  reportSetupStatus();
 }
 
-float recentAttention() {
-  return attentionAt(eventN() - 1);
+float recentCharacteristic() {
+  return characteristicAt(eventN() - 1);
 }
 
-float nextAttention() {
-  try {
-    return attentionAt(eventN());
-  } catch (ArrayIndexOutOfBoundsException e) {
-    exit();
-    return 0;
-  }
+float nextCharacteristic() {
+  return characteristicAt(eventN());
 }
 
-float smoothAttention() {
-  float start = recentAttention();
-  float end = nextAttention();
+float smoothCharacteristic() {
+  float start = recentCharacteristic();
+  float end = nextCharacteristic();
   return start + (end - start) * transitionScore();
 }
 
-float attentionAt(int eventN) throws ArrayIndexOutOfBoundsException {
-  return eventN >= 0 ? table.getRow(eventN).getInt("EEGATT") : 0;
+float characteristicAt(int eventN) {
+  return eventN >= 0 ? table.getRow(eventN).getInt("EEG" + CHARACTERISTIC) : 0;
 }
 
-String datetimeAt(int eventN) throws ArrayIndexOutOfBoundsException {
+String datetimeAt(int eventN) {
   return eventN >= 0 ? table.getRow(eventN).getString("TS") : ""; 
 }
 
 String datetime() {
-  try {
-    return datetimeAt(eventN());
-  } catch (ArrayIndexOutOfBoundsException e) {
-    exit();
-    return "";
-  }
+  return datetimeAt(eventN());
 }
 
 void debug() {
+  if (!DEBUG) {
+    return;
+  }
+  
   setDebugTextColor();
   
   int y = 25;  
@@ -217,10 +226,10 @@ void debug() {
   
   y += 25;
   text("DateTime: " + datetime(), 25, y += 25);  
-  text("ATT: " + smoothAttention(), 25, y += 25);
-  text("ATT radius: " + attentionRadius(), 25, y += 25);  
-  text("Last ATT: " + recentAttention(), 25, y += 25);
-  text("Next ATT: " + nextAttention(), 25, y += 25);
+  text(CHARACTERISTIC + ": " + smoothCharacteristic(), 25, y += 25);
+  text(CHARACTERISTIC + " radius: " + characteristicRadius(), 25, y += 25);  
+  text("Last " + CHARACTERISTIC + ": " + recentCharacteristic(), 25, y += 25);
+  text("Next " + CHARACTERISTIC + ": " + nextCharacteristic(), 25, y += 25);
   
   y += 25;
   text("FPS: " + float(frameN()) / second(), 25, y += 25);  
@@ -234,60 +243,85 @@ void debug() {
   text("Audio frame end: " + audioFrameEnd(), 25, y += 25);
 }
 
-float attentionRadius() {
-  return smoothAttention() * getScale();
+void reportSetupStatus() {
+  println(____LINE____);
+  println(rowCount + " total rows in table");
+  println(sampleRate + " frames per second");
+  println(bufferSize + " frames");
+  println(audioLength + " seconds");
+  println(____LINE____);
+  println("First frame: " + frameN());
+  println("First audio frame: " + audioFrameStart());
+  println(____LINE____);
+  println("Rendering...");
+}
+
+void reportRenderingStop() {
+  println(____LINE____);
+  println("Rendering completed in " + float(millis()) / 1000 + " seconds.");
+  println(____LINE____);
+  println("Events processed: " + (eventN() - 1));
+  println("Frames rendered: " + (frameN() - 1));
+  println("Audio frames visualized: " + (audioFrameStart() - 1));
+  println(____LINE____);
+  println("Rows total: " + table.getRowCount());
+  println("Buffer size:" + bufferSize);
+  println(____LINE____);
+}
+
+float characteristicRadius() {
+  return smoothCharacteristic() * getScale();
 }
 
 void drawCircleWave() {
+  boolean timeToStop = false;
+  
   int firstFrame = audioFrameStart();
   int lastFrame = audioFrameEnd();
-  float attentionRadius = attentionRadius();
+  
+  float characteristicRadius = characteristicRadius();
   float step = TWO_PI / (audioEventsPerFrame - 1);
+  
+  if (lastFrame >= bufferSize) {
+    lastFrame = bufferSize - 1;
+    step = TWO_PI / (lastFrame - firstFrame - 1);
+  }
+  
   float start = 0;
   float end = step;
   float left;
   float right;
-  boolean timeToStop = false;
-  
-  if (lastFrame > bufferSize) {
-    lastFrame = bufferSize;
-    timeToStop = true;
-  }
   
   for(int i = firstFrame; i < lastFrame + 1; i++) {
-      left = attentionRadius / 20 + leftChannel[i] * getScale() * 100;
-      right = attentionRadius / 20 + left + rightChannel[i] * getScale() * 100;
+      left = characteristicRadius / 20 + leftChannel[i] * getScale() * 100;
+      right = characteristicRadius / 20 + left + rightChannel[i] * getScale() * 100;
     
       setLeftChannelColor();
-      arc(width/2, height/2, attentionRadius + left, attentionRadius + left, start, end);
+      arc(width/2, height/2, characteristicRadius + left, characteristicRadius + left, start, end);
       setRightChannelColor();
-      arc(width/2, height/2, attentionRadius + right, attentionRadius + right, start, end);
+      arc(width/2, height/2, characteristicRadius + right, characteristicRadius + right, start, end);
       start = end;
       end += step;
   }
-  
-  if (timeToStop) {
-    exit();
-  }
 }
 
-void drawAttentionCircle() {
-  setAttentionColor();
-  ellipse(width/2, height/2, attentionRadius(), attentionRadius());
+void drawCharacteristicCircle() {
+  setCharacteristicColor();
+  ellipse(width/2, height/2, characteristicRadius(), characteristicRadius());
 }
 
 void renderFrame() {
+  setBackgroundColor();
+  noStroke();
+  
   drawCircleWave();
-  drawAttentionCircle();
+  drawCharacteristicCircle();
   
   debug();
 }
 
 void draw() {
   checkStopCondition();
-  
-  setBackgroundColor();
-  noStroke();
   
   renderFrame();
   
