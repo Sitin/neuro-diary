@@ -18,9 +18,14 @@ float scale;
 float att;
 float outerRadius;
 float innerRadius;
+int frameID = 0;
 
 Minim minim;
 AudioPlayer song;
+
+String datetime() {
+  return table.getRow(i).getString("TS"); 
+}
 
 float att() {
   return table.getRow(i).getFloat("EEGATT"); 
@@ -107,9 +112,9 @@ void drawCircleWave() {
       left = innerRadius / 20 + song.left.get(i) * scale * 100;
       right = innerRadius / 20 + left + song.right.get(i) * scale * 100;
     
-      fill(64);
+      fill(0x30, 0x03, 0x40);
       arc(width/2, height/2, innerRadius + left, innerRadius + left, start, end);
-      fill(127);
+      fill(0x36, 0xA9, 0xCF);
       arc(width/2, height/2, innerRadius + right, innerRadius + right, start, end);
       start = end;
       end += step;
@@ -119,17 +124,21 @@ void drawCircleWave() {
 void drawCircles() {
   noStroke();
   drawCircleWave();
-  fill(255);
+  fill(0x06, 0x08, 0x1B);
   ellipse(width/2, height/2, innerRadius, innerRadius);
 }
 
 void draw() {
   calculateFrame();
   
-  background(65);
+  background(0x32, 0x31, 0x54);
   noStroke();
   
   drawCircles();
 
   next();
+  
+  text(datetime(), 25, height - 25);
+  
+//  saveFrame("data/movie/solaris-" + frameID++ + ".tif");
 }
